@@ -28,17 +28,26 @@ const userSchema = new mongoose.Schema(
 
          },
 
-         avater:{
-            type:String,
-            default:true,
-         },
-
-
+    avatar: {
+      type: String,
+      default: "",
     },
-    {
-        timestamps:true,
-    }
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
-const User=mongoose.model("User", userSchema);
-module.exports=User;
+// Virtual alias for backward compatibility with 'avater'
+userSchema.virtual("avater")
+  .get(function () {
+    return this.avatar;
+  })
+  .set(function (v) {
+    this.avatar = v;
+  });
+
+const User = mongoose.model("User", userSchema);
+module.exports = User;
