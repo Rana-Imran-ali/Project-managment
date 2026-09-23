@@ -7,17 +7,37 @@ const {
   updateProject,
   deleteProject,
 } = require("../controllers/projectController");
+const { protect, authorize } = require("../middleware/authMiddleware");
+const {
+  createProjectValidator,
+  updateProjectValidator,
+} = require("../validators/projectValidator");
+const validate = require("../middleware/validationMiddleware");
 
 const router = express.Router();
 
-router.post("/", createProject);
+router.post(
+  "/",
+  protect,
+  authorize("admin"),
+  createProjectValidator,
+  validate,
+  createProject
+);
 
-router.get("/", getProjects);
+router.get("/", protect, getProjects);
 
-router.get("/:id", getProjectById);
+router.get("/:id", protect, getProjectById);
 
-router.put("/:id", updateProject);
+router.put(
+  "/:id",
+  protect,
+  authorize("admin"),
+  updateProjectValidator,
+  validate,
+  updateProject
+);
 
-router.delete("/:id", deleteProject);
+router.delete("/:id", protect, authorize("admin"), deleteProject);
 
-module.exports = router;
+module.exports = router;

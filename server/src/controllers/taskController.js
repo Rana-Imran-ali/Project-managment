@@ -24,11 +24,14 @@ const createTask = async (req, res) => {
       });
     }
 
-    // Check project ownership
-    if (existingProject.owner.toString() !== req.user._id.toString()) {
+    // Only admin or project owner can create and assign tasks
+    if (
+      req.user.role !== "admin" &&
+      existingProject.owner.toString() !== req.user._id.toString()
+    ) {
       return res.status(403).json({
         success: false,
-        message: "You are not allowed to create tasks in this project",
+        message: "Access denied: Only admins can create and assign tasks",
       });
     }
 
@@ -67,12 +70,17 @@ const getTasks = async (req, res) => {
   try {
     const { project, status, priority } = req.query;
 
-    const filter = {
-      createdBy: req.user._id,
-    };
+    const filter = {};
 
-    if (project) {
-      filter.project = project;
+    if (req.user.role === "admin") {
+      if (project) filter.project = project;
+    } else {
+      // Employees/members view tasks for the specified project, or their assigned tasks
+      if (project) {
+        filter.project = project;
+      } else {
+        filter.assignedTo = req.user._id;
+      }
     }
 
     if (status) {
@@ -106,10 +114,7 @@ const getTasks = async (req, res) => {
 // Get Single Task
 const getTask = async (req, res) => {
   try {
-    const task = await Task.findOne({
-      _id: req.params.id,
-      createdBy: req.user._id,
-    })
+    const task = await Task.findById(req.params.id)
       .populate("project", "name")
       .populate("createdBy", "name email")
       .populate("assignedTo", "name email");
@@ -137,18 +142,6 @@ const getTask = async (req, res) => {
 // Update Task
 const updateTask = async (req, res) => {
   try {
-    const task = await Task.findOne({
-      _id: req.params.id,
-      createdBy: req.user._id,
-    });
-
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found",
-      });
-    }
-
     const {
       title,
       description,
@@ -158,28 +151,67 @@ const updateTask = async (req, res) => {
       dueDate,
     } = req.body;
 
-    if (title !== undefined) {
-      task.title = title;
+    let task;
+
+    if (req.user.role === "admin") {
+      task = await Task.findById(req.params.id);
+    } else {
+      // Employee / member can only update tasks assigned to them
+      task = await Task.findOne({
+        _id: req.params.id,
+        assignedTo: req.user._id,
+      });
     }
 
-    if (description !== undefined) {
-      task.description = description;
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message:
+          req.user.role === "admin"
+            ? "Task not found"
+            : "Task not found or not assigned to you",
+      });
     }
 
-    if (assignedTo !== undefined) {
-      task.assignedTo = assignedTo || null;
-    }
+    if (req.user.role !== "admin") {
+      // Employees are only permitted to update task status
+      if (
+        title !== undefined ||
+        description !== undefined ||
+        assignedTo !== undefined ||
+        priority !== undefined ||
+        dueDate !== undefined
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Employees can only update task status (in-progress, completed, etc.)",
+        });
+      }
 
-    if (status !== undefined) {
-      task.status = status;
-    }
-
-    if (priority !== undefined) {
-      task.priority = priority;
-    }
-
-    if (dueDate !== undefined) {
-      task.dueDate = dueDate || null;
+      if (status !== undefined) {
+        task.status = status;
+      }
+    } else {
+      // Admins can update all fields
+      if (title !== undefined) {
+        task.title = title;
+      }
+      if (description !== undefined) {
+        task.description = description;
+      }
+      if (assignedTo !== undefined) {
+        task.assignedTo = assignedTo || null;
+      }
+      if (status !== undefined) {
+        task.status = status;
+      }
+      if (priority !== undefined) {
+        task.priority = priority;
+      }
+      if (dueDate !== undefined) {
+        task.dueDate = dueDate || null;
+      }
     }
 
     await task.save();
@@ -206,10 +238,14 @@ const updateTask = async (req, res) => {
 // Delete Task
 const deleteTask = async (req, res) => {
   try {
-    const task = await Task.findOne({
-      _id: req.params.id,
-      createdBy: req.user._id,
-    });
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: Only admins can delete tasks",
+      });
+    }
+
+    const task = await Task.findById(req.params.id);
 
     if (!task) {
       return res.status(404).json({

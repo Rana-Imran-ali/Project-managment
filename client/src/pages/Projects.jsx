@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { projectAPI } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 import ProjectCard from "../components/ProjectCard";
 import CreateProject from "./CreateProject";
 
 function Projects({ onOpenCreateModal }) {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,12 +87,14 @@ function Projects({ onOpenCreateModal }) {
           </p>
         </div>
 
-        <button
-          className="btn btn-primary"
-          onClick={() => (onOpenCreateModal ? onOpenCreateModal() : setIsModalOpen(true))}
-        >
-          <span>+</span> New Project
-        </button>
+        {user?.role === "admin" && (
+          <button
+            className="btn btn-primary"
+            onClick={() => (onOpenCreateModal ? onOpenCreateModal() : setIsModalOpen(true))}
+          >
+            <span>+</span> New Project
+          </button>
+        )}
       </div>
 
       <div className="filter-bar">
@@ -144,16 +148,20 @@ function Projects({ onOpenCreateModal }) {
           <p className="empty-state-text">
             {searchTerm || statusFilter !== "all"
               ? "No projects match your current filters. Try resetting your search or filter criteria."
-              : "Get started by creating your first project to track progress with your team."}
+              : user?.role === "admin"
+              ? "Get started by creating your first project to track progress with your team."
+              : "No projects have been assigned to you yet."}
           </p>
-          <button
-            className="btn btn-primary"
-            onClick={() =>
-              onOpenCreateModal ? onOpenCreateModal() : setIsModalOpen(true)
-            }
-          >
-            + Create First Project
-          </button>
+          {user?.role === "admin" && (
+            <button
+              className="btn btn-primary"
+              onClick={() =>
+                onOpenCreateModal ? onOpenCreateModal() : setIsModalOpen(true)
+              }
+            >
+              + Create First Project
+            </button>
+          )}
         </div>
       ) : (
         <div className="projects-grid">

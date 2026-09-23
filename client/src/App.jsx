@@ -14,9 +14,20 @@ import Register from "./pages/Register";
 
 import "./App.css";
 
-// Layout wrapper for authenticated and main dashboard pages
-function MainLayout() {
+// Bug #11 fix: Guard component — redirects unauthenticated users to /login.
+// Returns null while auth status is still being verified to avoid
+// a flash of the wrong page.
+function PrivateRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
+
+  if (loading) return null;
+
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
+// Layout wrapper for the full app shell (navbar + sidebar + routes)
+function MainLayout() {
+  const { isAuthenticated } = useAuth();
   const location = useLocation();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [projectCounts, setProjectCounts] = useState({
@@ -42,8 +53,10 @@ function MainLayout() {
   };
 
   useEffect(() => {
-    refreshCounts();
-  }, [location.pathname]);
+    if (isAuthenticated) {
+      refreshCounts();
+    }
+  }, [location.pathname, isAuthenticated]);
 
   // Auth pages don't need the dashboard sidebar/navbar layout
   const isAuthPage =
@@ -63,29 +76,50 @@ function MainLayout() {
 
         <main className="main-content">
           <Routes>
+            {/* Protected routes — require login */}
             <Route
               path="/"
               element={
-                <Dashboard
-                  onOpenCreateModal={() => setIsCreateModalOpen(true)}
-                />
+                <PrivateRoute>
+                  <Dashboard onOpenCreateModal={() => setIsCreateModalOpen(true)} />
+                </PrivateRoute>
               }
             />
             <Route
               path="/projects"
               element={
-                <Projects
-                  onOpenCreateModal={() => setIsCreateModalOpen(true)}
-                />
+                <PrivateRoute>
+                  <Projects onOpenCreateModal={() => setIsCreateModalOpen(true)} />
+                </PrivateRoute>
               }
             />
-            <Route path="/projects/:id" element={<ProjectDetails />} />
+            <Route
+              path="/projects/:id"
+              element={
+                <PrivateRoute>
+                  <ProjectDetails />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/create-project"
-              element={<CreateProject isOpen={true} />}
+              element={
+                <PrivateRoute>
+                  <CreateProject isOpen={true} />
+                </PrivateRoute>
+              }
             />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+
+            {/* Auth routes — redirect to dashboard if already logged in */}
+            <Route
+              path="/login"
+              element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
+            />
+            <Route
+              path="/register"
+              element={isAuthenticated ? <Navigate to="/" replace /> : <Register />}
+            />
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -98,8 +132,6 @@ function MainLayout() {
           onSuccess={() => {
             setIsCreateModalOpen(false);
             refreshCounts();
-            // Trigger refresh event if needed
-            window.location.reload();
           }}
         />
       )}

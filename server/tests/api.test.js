@@ -181,21 +181,57 @@ async function runTests() {
       "POST /api/auth/login returns a valid JWT token"
     );
 
-    // 8. Create project with invalid owner ID (should return 400, NOT crash with 500)
-    const invalidOwnerRes = await request(
+    const authHeaders = { Authorization: `Bearer ${loginRes.body.token}` };
+
+    // 7b. Create project without auth header returns 401 Unauthorized
+    const unauthProjectRes = await request(
       server,
       { method: "POST", path: "/api/projects" },
-      { name: "Test Project", owner: "not_a_valid_mongo_id" }
+      { name: "Unauthorized Project" }
     );
     assert(
-      invalidOwnerRes.statusCode === 400,
-      "POST /api/projects rejects invalid owner ID with 400 Bad Request (not 500)"
+      unauthProjectRes.statusCode === 401,
+      "POST /api/projects without token returns 401 Unauthorized"
     );
 
-    // 9. Create project with valid owner ID
+    // 7c. Create project with member token returns 403 Forbidden
+    const memberProjectRes = await request(
+      server,
+      { method: "POST", path: "/api/projects", headers: authHeaders },
+      { name: "Unauthorized Member Project" }
+    );
+    assert(
+      memberProjectRes.statusCode === 403,
+      "POST /api/projects rejects non-admin member with 403 Forbidden"
+    );
+
+    // Promote test user to admin for admin-only project endpoints
+    const User = require("../src/models/User");
+    await User.findByIdAndUpdate(userId, { role: "admin" });
+
+    // Re-login to get admin JWT token with role 'admin'
+    const adminLoginRes = await request(
+      server,
+      { method: "POST", path: "/api/auth/login" },
+      { email: testEmail, password: "Password123!" }
+    );
+    const adminHeaders = { Authorization: `Bearer ${adminLoginRes.body.token}` };
+
+    // 8. Create project with invalid member ID (should return 400, NOT crash with 500)
+    const invalidMemberRes = await request(
+      server,
+      { method: "POST", path: "/api/projects", headers: adminHeaders },
+      { name: "Test Project", members: ["not_a_valid_mongo_id"] }
+    );
+    assert(
+      invalidMemberRes.statusCode === 400,
+      "POST /api/projects rejects invalid member ID with 400 Bad Request (not 500)"
+    );
+
+    // 9. Create project with valid admin credentials
     const createProjRes = await request(
       server,
-      { method: "POST", path: "/api/projects" },
+      { method: "POST", path: "/api/projects", headers: adminHeaders },
       {
         name: "Alpha Project",
         description: "A test project",
@@ -205,7 +241,7 @@ async function runTests() {
     );
     assert(
       createProjRes.statusCode === 201,
-      "POST /api/projects creates project with 201 Created"
+      "POST /api/projects creates project with 201 Created for admin"
     );
     const projectId = createProjRes.body.project._id;
 
@@ -213,6 +249,7 @@ async function runTests() {
     const getProjectsRes = await request(server, {
       method: "GET",
       path: "/api/projects",
+      headers: adminHeaders,
     });
     assert(
       getProjectsRes.statusCode === 200,
@@ -227,6 +264,7 @@ async function runTests() {
     const getMalformedRes = await request(server, {
       method: "GET",
       path: "/api/projects/123-invalid-id",
+      headers: adminHeaders,
     });
     assert(
       getMalformedRes.statusCode === 400,
@@ -237,6 +275,7 @@ async function runTests() {
     const getProjectRes = await request(server, {
       method: "GET",
       path: `/api/projects/${projectId}`,
+      headers: adminHeaders,
     });
     assert(
       getProjectRes.statusCode === 200,
@@ -250,7 +289,7 @@ async function runTests() {
     // 13. Update project with malformed ID (returns 400)
     const updateMalformedRes = await request(
       server,
-      { method: "PUT", path: "/api/projects/invalid_id" },
+      { method: "PUT", path: "/api/projects/invalid_id", headers: adminHeaders },
       { name: "Updated Name" }
     );
     assert(
@@ -261,7 +300,7 @@ async function runTests() {
     // 14. Update project with valid ID
     const updateRes = await request(
       server,
-      { method: "PUT", path: `/api/projects/${projectId}` },
+      { method: "PUT", path: `/api/projects/${projectId}`, headers: adminHeaders },
       { name: "Alpha Project Updated", status: "completed" }
     );
     assert(
@@ -277,6 +316,7 @@ async function runTests() {
     const deleteMalformedRes = await request(server, {
       method: "DELETE",
       path: "/api/projects/invalid_id",
+      headers: adminHeaders,
     });
     assert(
       deleteMalformedRes.statusCode === 400,
@@ -287,6 +327,7 @@ async function runTests() {
     const deleteRes = await request(server, {
       method: "DELETE",
       path: `/api/projects/${projectId}`,
+      headers: adminHeaders,
     });
     assert(
       deleteRes.statusCode === 200,
@@ -294,7 +335,6 @@ async function runTests() {
     );
 
     // 17. Clean up created test user and close
-    const User = require("../src/models/User");
     await User.findByIdAndDelete(userId);
 
     console.log("\n=========================================");

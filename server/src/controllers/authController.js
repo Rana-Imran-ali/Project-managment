@@ -36,12 +36,12 @@ const registerUser = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
+    // Create user - public registrations are always member role
     const user = await User.create({
       name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
-      role: role || "member",
+      role: "member",
     });
 
     const token = generateToken(user._id, user.role);

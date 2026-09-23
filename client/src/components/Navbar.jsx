@@ -1,5 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import NotificationBell from "./NotificationBell";
 
 function Navbar({ onOpenCreateModal }) {
   const { user, isAuthenticated, logout } = useAuth();
@@ -50,12 +51,17 @@ function Navbar({ onOpenCreateModal }) {
       <div className="nav-user">
         {isAuthenticated ? (
           <>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={onOpenCreateModal}
-            >
-              <span>+</span> New Project
-            </button>
+            {user?.role === "admin" && (
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={onOpenCreateModal}
+              >
+                <span>+</span> New Project
+              </button>
+            )}
+
+            {/* 🔔 Notification Bell */}
+            <NotificationBell />
 
             <div className="user-badge">
               <div className="user-avatar">{initials}</div>

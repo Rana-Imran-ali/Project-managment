@@ -1,6 +1,5 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
-const express = require("express");
 
 const protect = async (req, res, next) => {
   let token;
@@ -38,30 +37,18 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = {
-  protect,
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        message: "Access denied: You do not have permission to perform this action",
+      });
+    }
+    next();
+  };
 };
 
-const {
-  createTask,
-  getTasks,
-  getTask,
-  updateTask,
-  deleteTask,
-} = require("../controllers/taskController");
-
-const { protect } = require("../middleware/authMiddleware");
-
-const router = express.Router();
-
-router.post("/", protect, createTask);
-
-router.get("/", protect, getTasks);
-
-router.get("/:id", protect, getTask);
-
-router.put("/:id", protect, updateTask);
-
-router.delete("/:id", protect, deleteTask);
-
-module.exports = router;
+module.exports = {
+  protect,
+  authorize,
+};

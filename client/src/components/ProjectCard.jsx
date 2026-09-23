@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function ProjectCard({ project, onDelete, onStatusChange }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const { _id, name, description, status, deadline, owner } = project;
 
   const formattedDeadline = deadline
@@ -43,27 +46,29 @@ function ProjectCard({ project, onDelete, onStatusChange }) {
         </div>
 
         <div className="project-actions">
-          <select
-            className="form-select"
-            style={{ padding: "6px 10px", fontSize: "12px", width: "auto" }}
-            value={status}
-            onChange={(e) => onStatusChange?.(_id, e.target.value)}
-          >
-            <option value="planning">Planning</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          {isAdmin && (
+            <select
+              className="form-select"
+              style={{ padding: "6px 10px", fontSize: "12px", width: "auto" }}
+              value={status}
+              onChange={(e) => onStatusChange?.(_id, e.target.value)}
+            >
+              <option value="planning">Planning</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          )}
 
           <Link
             to={`/projects/${_id}`}
             className="btn btn-secondary btn-sm"
-            style={{ marginLeft: "auto" }}
+            style={{ marginLeft: isAdmin ? "auto" : "0" }}
           >
             Details
           </Link>
 
-          {onDelete && (
+          {isAdmin && onDelete && (
             <button
               className="btn btn-danger btn-sm"
               onClick={() => onDelete(_id)}

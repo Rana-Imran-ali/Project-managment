@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -26,7 +27,6 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // If unauthorized and token was present, clear invalid credentials
       const token = localStorage.getItem("token");
       if (token) {
         localStorage.removeItem("token");
@@ -51,6 +51,39 @@ export const projectAPI = {
   create: (projectData) => api.post("/projects", projectData),
   update: (id, projectData) => api.put(`/projects/${id}`, projectData),
   delete: (id) => api.delete(`/projects/${id}`),
+};
+
+// Tasks API endpoints
+export const taskAPI = {
+  getAll: (params) => api.get("/tasks", { params }),
+  getById: (id) => api.get(`/tasks/${id}`),
+  create: (taskData) => api.post("/tasks", taskData),
+  update: (id, taskData) => api.put(`/tasks/${id}`, taskData),
+  delete: (id) => api.delete(`/tasks/${id}`),
+};
+
+// Comments API endpoints
+export const commentAPI = {
+  getByTask: (taskId) => api.get(`/comment/task/${taskId}`),
+  create: (commentData) => api.post("/comment", commentData),
+  update: (id, commentData) => api.put(`/comment/${id}`, commentData),
+  delete: (id) => api.delete(`/comment/${id}`),
+};
+
+// Notifications API endpoints
+export const notificationAPI = {
+  getAll: () => api.get("/notification"),
+  getUnread: () => api.get("/notification/unread"),
+  markAsRead: (id) => api.put(`/notification/${id}/read`),
+  markAllAsRead: () => api.put("/notification/read-all"),
+  delete: (id) => api.delete(`/notification/${id}`),
+};
+
+// Activities API endpoints
+export const activityAPI = {
+  getMy: () => api.get("/activities/my"),
+  getByProject: (projectId) => api.get(`/activities/project/${projectId}`),
+  getByTask: (taskId) => api.get(`/activities/task/${taskId}`),
 };
 
 export default api;

@@ -71,9 +71,11 @@ function Dashboard({ onOpenCreateModal }) {
           </p>
         </div>
 
-        <button className="btn btn-primary" onClick={onOpenCreateModal}>
-          <span>+</span> New Project
-        </button>
+        {user?.role === "admin" && (
+          <button className="btn btn-primary" onClick={onOpenCreateModal}>
+            <span>+</span> New Project
+          </button>
+        )}
       </div>
 
       {error && (
@@ -179,12 +181,15 @@ function Dashboard({ onOpenCreateModal }) {
             <div className="empty-state-icon">✨</div>
             <h3 className="empty-state-title">No projects yet</h3>
             <p className="empty-state-text">
-              Create your very first project to start tracking your workflow,
-              team tasks, and deadlines.
+              {user?.role === "admin"
+                ? "Create your very first project to start tracking your workflow, team tasks, and deadlines."
+                : "No projects have been assigned to you yet. An admin will assign you to active projects."}
             </p>
-            <button className="btn btn-primary" onClick={onOpenCreateModal}>
-              + Create First Project
-            </button>
+            {user?.role === "admin" && (
+              <button className="btn btn-primary" onClick={onOpenCreateModal}>
+                + Create First Project
+              </button>
+            )}
           </div>
         ) : (
           <div className="projects-grid">

@@ -4,17 +4,19 @@ const Project = require("../models/Project");
 // Create a new project
 const createProject = async (req, res) => {
   try {
-    const { name, description, owner, members, status, deadline } = req.body || {};
-
-    if (!name || !owner) {
-      return res.status(400).json({
-        message: "Project name and owner are required",
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Access denied: Only admins can create projects",
       });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(owner)) {
+    const { name, description, members, status, deadline } = req.body || {};
+
+    const owner = req.user._id;
+
+    if (!name) {
       return res.status(400).json({
-        message: "Invalid owner ID format. Must be a valid ObjectId",
+        message: "Project name is required",
       });
     }
 
@@ -56,10 +58,15 @@ const createProject = async (req, res) => {
   }
 };
 
-// Get all projects
+// Get all projects (Admins see all; Members see projects they are part of)
 const getProjects = async (req, res) => {
   try {
-    const projects = await Project.find()
+    const filter =
+      req.user.role === "admin"
+        ? {}
+        : { $or: [{ owner: req.user._id }, { members: req.user._id }] };
+
+    const projects = await Project.find(filter)
       .populate("owner", "name email role")
       .populate("members", "name email role");
 
@@ -83,7 +90,12 @@ const getProjectById = async (req, res) => {
       });
     }
 
-    const project = await Project.findById(req.params.id)
+    const filter = { _id: req.params.id };
+    if (req.user.role !== "admin") {
+      filter.$or = [{ owner: req.user._id }, { members: req.user._id }];
+    }
+
+    const project = await Project.findOne(filter)
       .populate("owner", "name email role")
       .populate("members", "name email role");
 
@@ -112,6 +124,12 @@ const getProjectById = async (req, res) => {
 // Update project
 const updateProject = async (req, res) => {
   try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Access denied: Only admins can edit projects",
+      });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({
         message: "Invalid project ID",
@@ -173,6 +191,12 @@ const updateProject = async (req, res) => {
 // Delete project
 const deleteProject = async (req, res) => {
   try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Access denied: Only admins can delete projects",
+      });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({
         message: "Invalid project ID",

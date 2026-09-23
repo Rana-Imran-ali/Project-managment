@@ -1,16 +1,20 @@
 const path = require("path");
-const express = require("express");
-const cors = require("cors");
 const dotenv = require("dotenv");
-const taskRoutes = require("./routes/taskRoutes");
 
 // Load .env relative to server root directory with fallback
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 dotenv.config();
 
+const express = require("express");
+const cors = require("cors");
+const taskRoutes = require("./routes/taskRoutes");
+const commentRoutes = require("./routes/commentRoutes");
 const authRoutes = require("./routes/authRoutes");
 const projectRoutes = require("./routes/projectRoutes");
+const notificationRoutes= require("./routes/notificationRoutes");
+const activityRoutes = require("./routes/activityRoutes");
 const connectDB = require("./config/db");
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,6 +30,10 @@ connectDB();
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/tasks", taskRoutes);
+app.use("/api/comment", commentRoutes);
+app.use("/api/notification", notificationRoutes);
+app.use("/api/activities", activityRoutes);
+
 
 app.get("/", (req, res) => {
   res.json({
