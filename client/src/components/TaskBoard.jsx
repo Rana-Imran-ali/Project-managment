@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { taskAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import CommentThread from "./CommentThread";
+import TaskAttachments from "./TaskAttachments";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const COLUMNS = [
@@ -181,7 +182,7 @@ function TaskModal({ mode, task, projectId, projectMembers = [], onClose, onSave
           <button className="modal-close-btn" onClick={onClose}>×</button>
         </div>
 
-        {/* Tabs (only show comments tab when editing) */}
+        {/* Tabs (only show comments & attachments tabs when editing) */}
         {isEdit && (
           <div className="task-modal-tabs">
             <button
@@ -195,6 +196,12 @@ function TaskModal({ mode, task, projectId, projectMembers = [], onClose, onSave
               onClick={() => setActiveTab("comments")}
             >
               💬 Comments
+            </button>
+            <button
+              className={`task-modal-tab ${activeTab === "attachments" ? "active" : ""}`}
+              onClick={() => setActiveTab("attachments")}
+            >
+              📎 Attachments
             </button>
           </div>
         )}
@@ -316,6 +323,13 @@ function TaskModal({ mode, task, projectId, projectMembers = [], onClose, onSave
         {activeTab === "comments" && isEdit && (
           <div style={{ padding: "0 24px 24px" }}>
             <CommentThread taskId={task._id} />
+          </div>
+        )}
+
+        {/* Attachments Tab */}
+        {activeTab === "attachments" && isEdit && (
+          <div style={{ padding: "0 24px 24px" }}>
+            <TaskAttachments taskId={task._id} />
           </div>
         )}
       </div>

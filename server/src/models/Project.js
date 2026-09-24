@@ -32,6 +32,14 @@ const projectSchema = new mongoose.Schema(
         deadline:{
             type:Date,
         },
+
+        member:[
+
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+            },
+        ],
     },
     {
         timestamps:true,

@@ -4,6 +4,7 @@ import { projectAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import TaskBoard from "../components/TaskBoard";
 import ActivityFeed from "../components/ActivityFeed";
+import TeamManagementModal from "../components/TeamManagementModal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function Avatar({ name, size = 32 }) {
@@ -38,6 +39,8 @@ function ProjectDetails() {
     deadline: "",
   });
   const [saving, setSaving] = useState(false);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [removingMember, setRemovingMember] = useState(null);
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -95,6 +98,34 @@ function ProjectDetails() {
       navigate("/projects");
     } catch (err) {
       alert(err.response?.data?.message || "Failed to delete project.");
+    }
+  };
+
+  // Called when TeamManagementModal updates the project (add/remove member)
+  const handleProjectUpdated = (updatedProject) => {
+    setProject(updatedProject);
+    setEditForm((prev) => ({
+      ...prev,
+      name: updatedProject.name || prev.name,
+      description: updatedProject.description || prev.description,
+      status: updatedProject.status || prev.status,
+      deadline: updatedProject.deadline
+        ? updatedProject.deadline.slice(0, 10)
+        : prev.deadline,
+    }));
+  };
+
+  // Inline remove member (admin shortcut from member list)
+  const handleInlineRemoveMember = async (member) => {
+    if (!window.confirm(`Remove ${member.name} from this project?`)) return;
+    setRemovingMember(member._id);
+    try {
+      const res = await projectAPI.removeMember(id, member._id);
+      handleProjectUpdated(res.data.project);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to remove member.");
+    } finally {
+      setRemovingMember(null);
     }
   };
 
@@ -257,7 +288,14 @@ function ProjectDetails() {
               </div>
 
               {isAdmin && (
-                <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
+                <div style={{ display: "flex", gap: "10px", flexShrink: 0, flexWrap: "wrap" }}>
+                  <button
+                    id="manage-team-btn"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setIsTeamModalOpen(true)}
+                  >
+                    👥 Manage Team
+                  </button>
                   <button
                     className="btn btn-secondary btn-sm"
                     onClick={() => setIsEditing(true)}
@@ -348,16 +386,53 @@ function ProjectDetails() {
             </div>
 
             {/* ── Members Section ─────────────────────────────────────────── */}
-            {allMembers.length > 0 && (
-              <div style={{ marginTop: "24px" }}>
-                <h3 style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "12px", textTransform: "uppercase", letterSpacing: ".06em" }}>
+            <div style={{ marginTop: "24px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "12px",
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: "14px",
+                    color: "var(--text-secondary)",
+                    textTransform: "uppercase",
+                    letterSpacing: ".06em",
+                    margin: 0,
+                  }}
+                >
                   Team Members ({allMembers.length})
                 </h3>
+                {isAdmin && (
+                  <button
+                    id="manage-team-inline-btn"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setIsTeamModalOpen(true)}
+                    style={{ fontSize: "12px", padding: "5px 12px" }}
+                  >
+                    👥 Manage
+                  </button>
+                )}
+              </div>
+
+              {allMembers.length === 0 ? (
+                <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>
+                  No team members yet.
+                  {isAdmin && ' Click "Manage Team" to add members.'}
+                </p>
+              ) : (
                 <div className="members-list">
                   {allMembers.map((m) => (
-                    <div key={m._id} className="member-chip">
+                    <div
+                      key={m._id}
+                      className="member-chip"
+                      style={{ alignItems: "center" }}
+                    >
                       <Avatar name={m.name} size={30} />
-                      <div>
+                      <div style={{ flex: 1 }}>
                         <p className="member-name">
                           {m.name}
                           {m.isOwner && (
@@ -366,11 +441,42 @@ function ProjectDetails() {
                         </p>
                         <p className="member-email">{m.email}</p>
                       </div>
+                      {/* Admin inline remove (only for non-owner members) */}
+                      {isAdmin && !m.isOwner && (
+                        <button
+                          id={`remove-member-inline-${m._id}`}
+                          title={`Remove ${m.name}`}
+                          onClick={() => handleInlineRemoveMember(m)}
+                          disabled={removingMember === m._id}
+                          style={{
+                            background: "rgba(239,68,68,0.1)",
+                            border: "1px solid rgba(239,68,68,0.25)",
+                            borderRadius: "6px",
+                            color: "#ef4444",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            padding: "3px 8px",
+                            cursor: "pointer",
+                            flexShrink: 0,
+                            transition: "all 0.15s",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background =
+                              "rgba(239,68,68,0.2)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background =
+                              "rgba(239,68,68,0.1)")
+                          }
+                        >
+                          {removingMember === m._id ? "…" : "✕"}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -384,6 +490,20 @@ function ProjectDetails() {
       <div className="glass-card" style={{ padding: "28px" }}>
         <ActivityFeed projectId={id} />
       </div>
+
+      {/* ── Team Management Modal ──────────────────────────────────────────── */}
+      {isTeamModalOpen && (
+        <TeamManagementModal
+          projectId={id}
+          projectName={project.name}
+          members={(project.members || []).filter(
+            (m) => m._id !== project.owner?._id
+          )}
+          owner={project.owner}
+          onClose={() => setIsTeamModalOpen(false)}
+          onProjectUpdated={handleProjectUpdated}
+        />
+      )}
     </div>
   );
 }

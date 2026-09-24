@@ -6,6 +6,8 @@ const {
   getProjectById,
   updateProject,
   deleteProject,
+  addMember,
+  removeMember,
 } = require("../controllers/projectController");
 const { protect, authorize } = require("../middleware/authMiddleware");
 const {
@@ -40,4 +42,8 @@ router.put(
 
 router.delete("/:id", protect, authorize("admin"), deleteProject);
 
-module.exports = router;
+// ─── Team Management Routes (Admin only) ─────────────────────────────────────
+router.post("/:id/members", protect, authorize("admin"), addMember);
+router.delete("/:id/members/:userId", protect, authorize("admin"), removeMember);
+
+module.exports = router;

@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 const Project = require("../models/Project");
+const Notification = require("../models/Notification");
+const User = require("../models/User");
 
 // Create a new project
 const createProject = async (req, res) => {
@@ -227,10 +229,131 @@ const deleteProject = async (req, res) => {
   }
 };
 
+// ─── Add Member to Project (Admin only) ───────────────────────────────────────
+const addMember = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Access denied: Only admins can manage project members",
+      });
+    }
+
+    const { id: projectId } = req.params;
+    const { userId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ message: "Invalid project ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    // Verify the user exists
+    const userToAdd = await User.findById(userId).select("-password");
+    if (!userToAdd) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    // Check if already a member
+    const alreadyMember = project.members.some(
+      (m) => m.toString() === userId
+    );
+    if (alreadyMember) {
+      return res.status(409).json({ message: "User is already a member of this project" });
+    }
+
+    // Check if they are the owner
+    if (project.owner.toString() === userId) {
+      return res.status(409).json({ message: "User is already the project owner" });
+    }
+
+    // Add member
+    project.members.push(userId);
+    await project.save();
+
+    // Send instant notification to the added employee
+    await Notification.create({
+      recipient: userId,
+      sender: req.user._id,
+      type: "project-added",
+      message: `You have been added to the project "${project.name}" by ${req.user.name}.`,
+      project: project._id,
+    });
+
+    // Return updated project with populated fields
+    const updatedProject = await Project.findById(projectId)
+      .populate("owner", "name email role")
+      .populate("members", "name email role");
+
+    res.status(200).json({
+      message: `${userToAdd.name} has been added to the project`,
+      project: updatedProject,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ─── Remove Member from Project (Admin only) ──────────────────────────────────
+const removeMember = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Access denied: Only admins can manage project members",
+      });
+    }
+
+    const { id: projectId, userId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ message: "Invalid project ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    const memberIndex = project.members.findIndex(
+      (m) => m.toString() === userId
+    );
+
+    if (memberIndex === -1) {
+      return res.status(404).json({ message: "User is not a member of this project" });
+    }
+
+    // Remove member
+    project.members.splice(memberIndex, 1);
+    await project.save();
+
+    // Return updated project with populated fields
+    const updatedProject = await Project.findById(projectId)
+      .populate("owner", "name email role")
+      .populate("members", "name email role");
+
+    res.status(200).json({
+      message: "Member removed from project",
+      project: updatedProject,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
 module.exports = {
   createProject,
   getProjects,
   getProjectById,
   updateProject,
   deleteProject,
-};
+  addMember,
+  removeMember,
+};

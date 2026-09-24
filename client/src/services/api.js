@@ -51,6 +51,10 @@ export const projectAPI = {
   create: (projectData) => api.post("/projects", projectData),
   update: (id, projectData) => api.put(`/projects/${id}`, projectData),
   delete: (id) => api.delete(`/projects/${id}`),
+  addMember: (projectId, userId) =>
+    api.post(`/projects/${projectId}/members`, { userId }),
+  removeMember: (projectId, userId) =>
+    api.delete(`/projects/${projectId}/members/${userId}`),
 };
 
 // Tasks API endpoints
@@ -84,6 +88,34 @@ export const activityAPI = {
   getMy: () => api.get("/activities/my"),
   getByProject: (projectId) => api.get(`/activities/project/${projectId}`),
   getByTask: (taskId) => api.get(`/activities/task/${taskId}`),
+};
+
+// Users API endpoints (Admin)
+export const userAPI = {
+  search: (query) => api.get("/users/search", { params: { q: query } }),
+};
+
+// Attachments API endpoints
+export const attachmentAPI = {
+  getByTask: (taskId) => api.get(`/attachments/task/${taskId}`),
+  upload: (taskId, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post(`/attachments/task/${taskId}`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
+  delete: (id) => api.delete(`/attachments/${id}`),
+};
+
+export const getUploadUrl = (filename) => {
+  if (!filename) return "";
+  const base = (
+    import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+  ).replace(/\/api\/?$/, "");
+  return `${base}/uploads/${filename}`;
 };
 
 export default api;

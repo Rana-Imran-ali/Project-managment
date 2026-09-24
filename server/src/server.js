@@ -13,8 +13,9 @@ const authRoutes = require("./routes/authRoutes");
 const projectRoutes = require("./routes/projectRoutes");
 const notificationRoutes= require("./routes/notificationRoutes");
 const activityRoutes = require("./routes/activityRoutes");
+const userRoutes = require("./routes/userRoutes");
 const connectDB = require("./config/db");
-
+const attachmentRoutes = require("./routes/attachmentRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,6 +23,7 @@ const PORT = process.env.PORT || 5000;
 // middleware
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
 
 // database
 connectDB();
@@ -33,6 +35,8 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/comment", commentRoutes);
 app.use("/api/notification", notificationRoutes);
 app.use("/api/activities", activityRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/attachments", attachmentRoutes);
 
 
 app.get("/", (req, res) => {
