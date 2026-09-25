@@ -1,6 +1,7 @@
 const fs = require("fs");
 const Attachment = require("../models/Attachment");
 const Task = require("../models/Task");
+const { getIO } = require("../socket");
 
 const uploadAttachment = async (req, res, next) => {
   try {
@@ -33,6 +34,11 @@ const uploadAttachment = async (req, res, next) => {
     const populatedAttachment = await Attachment.findById(
       attachment._id
     ).populate("uploadedBy", "name email");
+
+    // Real-time broadcast to task room
+    try {
+      getIO().to(`task:${task._id}`).emit("attachment:created", populatedAttachment);
+    } catch { /* no-op */ }
 
     res.status(201).json({
       success: true,
@@ -101,7 +107,13 @@ const deleteAttachment = async (req, res, next) => {
       }
     }
 
+    const taskId = attachment.task;
     await attachment.deleteOne();
+
+    // Real-time broadcast to task room
+    try {
+      getIO().to(`task:${taskId}`).emit("attachment:deleted", attachment._id.toString());
+    } catch { /* no-op */ }
 
     res.status(200).json({
       success: true,

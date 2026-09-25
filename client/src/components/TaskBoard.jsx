@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { taskAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import CommentThread from "./CommentThread";
 import TaskAttachments from "./TaskAttachments";
 
@@ -340,6 +341,7 @@ function TaskModal({ mode, task, projectId, projectMembers = [], onClose, onSave
 // ─── TaskBoard (Main Export) ───────────────────────────────────────────────────
 export default function TaskBoard({ projectId, projectMembers = [] }) {
   const { user } = useAuth();
+  const socket  = useSocket();
   const isAdmin = user?.role === "admin";
 
   const [tasks, setTasks] = useState([]);
@@ -347,10 +349,52 @@ export default function TaskBoard({ projectId, projectMembers = [] }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
 
+  // ── Initial data fetch ──────────────────────────────────────────
   useEffect(() => {
     if (!projectId) return;
     fetchTasks();
   }, [projectId]);
+
+  // ── Socket: join / leave project room & listen for task events ──
+  useEffect(() => {
+    if (!socket || !projectId) return;
+
+    socket.emit("join-project", projectId);
+
+    const onTaskCreated = (newTask) => {
+      setTasks((prev) => {
+        // avoid duplicates (our own API call already added it)
+        if (prev.some((t) => t._id === newTask._id)) return prev;
+        return [...prev, newTask];
+      });
+    };
+
+    const onTaskUpdated = (updatedTask) => {
+      setTasks((prev) =>
+        prev.map((t) => (t._id === updatedTask._id ? updatedTask : t))
+      );
+      // Sync the open modal if it shows the same task
+      setSelectedTask((sel) =>
+        sel && sel._id === updatedTask._id ? updatedTask : sel
+      );
+    };
+
+    const onTaskDeleted = ({ _id }) => {
+      setTasks((prev) => prev.filter((t) => t._id !== _id));
+      setSelectedTask((sel) => (sel && sel._id === _id ? null : sel));
+    };
+
+    socket.on("task:created", onTaskCreated);
+    socket.on("task:updated", onTaskUpdated);
+    socket.on("task:deleted", onTaskDeleted);
+
+    return () => {
+      socket.emit("leave-project", projectId);
+      socket.off("task:created", onTaskCreated);
+      socket.off("task:updated", onTaskUpdated);
+      socket.off("task:deleted", onTaskDeleted);
+    };
+  }, [socket, projectId]);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -363,7 +407,10 @@ export default function TaskBoard({ projectId, projectMembers = [] }) {
 
   const handleSave = (savedTask, mode) => {
     if (mode === "create") {
-      setTasks((prev) => [...prev, savedTask]);
+      setTasks((prev) => {
+        if (prev.some((t) => t._id === savedTask._id)) return prev;
+        return [...prev, savedTask];
+      });
       setShowCreateModal(false);
     } else {
       setTasks((prev) => prev.map((t) => (t._id === savedTask._id ? savedTask : t)));

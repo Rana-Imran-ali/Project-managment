@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Project = require("../models/Project");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
+const { getIO } = require("../socket");
 
 // Create a new project
 const createProject = async (req, res) => {
@@ -277,13 +278,21 @@ const addMember = async (req, res) => {
     await project.save();
 
     // Send instant notification to the added employee
-    await Notification.create({
+    const notification = await Notification.create({
       recipient: userId,
       sender: req.user._id,
       type: "project-added",
       message: `You have been added to the project "${project.name}" by ${req.user.name}.`,
       project: project._id,
     });
+
+    // Push real-time notification to the user's private socket room
+    try {
+      const populatedNotif = await Notification.findById(notification._id)
+        .populate("sender", "name email")
+        .populate("project", "name");
+      getIO().to(`user:${userId}`).emit("notification:new", populatedNotif);
+    } catch { /* no-op if socket not ready */ }
 
     // Return updated project with populated fields
     const updatedProject = await Project.findById(projectId)

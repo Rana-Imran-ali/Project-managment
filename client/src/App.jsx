@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { SocketProvider } from "./context/SocketContext";
 import { projectAPI } from "./services/api";
 
 import Navbar from "./components/Navbar";
@@ -143,10 +144,13 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <MainLayout />
+        <SocketProvider>
+          <MainLayout />
+        </SocketProvider>
       </AuthProvider>
     </BrowserRouter>
   );
 }
+
 
 export default App;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { commentAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(dateStr) {
@@ -35,6 +36,7 @@ function Avatar({ name, size = 28 }) {
 // ─── Component ─────────────────────────────────────────────────────────────────
 export default function CommentThread({ taskId }) {
   const { user } = useAuth();
+  const socket   = useSocket();
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -43,10 +45,47 @@ export default function CommentThread({ taskId }) {
   const [editText, setEditText] = useState("");
   const bottomRef = useRef(null);
 
+  // ── Initial fetch ──────────────────────────────────────────────
   useEffect(() => {
     if (!taskId) return;
     fetchComments();
   }, [taskId]);
+
+  // ── Socket: join task room & listen for comment events ────────
+  useEffect(() => {
+    if (!socket || !taskId) return;
+
+    socket.emit("join-task", taskId);
+
+    const onCreated = (comment) => {
+      setComments((prev) => {
+        if (prev.some((c) => c._id === comment._id)) return prev;
+        return [...prev, comment];
+      });
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    };
+
+    const onUpdated = (comment) => {
+      setComments((prev) =>
+        prev.map((c) => (c._id === comment._id ? comment : c))
+      );
+    };
+
+    const onDeleted = ({ _id }) => {
+      setComments((prev) => prev.filter((c) => c._id !== _id));
+    };
+
+    socket.on("comment:created", onCreated);
+    socket.on("comment:updated", onUpdated);
+    socket.on("comment:deleted", onDeleted);
+
+    return () => {
+      socket.emit("leave-task", taskId);
+      socket.off("comment:created", onCreated);
+      socket.off("comment:updated", onUpdated);
+      socket.off("comment:deleted", onDeleted);
+    };
+  }, [socket, taskId]);
 
   const fetchComments = async () => {
     setLoading(true);
@@ -57,6 +96,7 @@ export default function CommentThread({ taskId }) {
     setLoading(false);
   };
 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const content = text.trim();
@@ -64,7 +104,11 @@ export default function CommentThread({ taskId }) {
     setSubmitting(true);
     try {
       const res = await commentAPI.create({ content, task: taskId });
-      setComments((prev) => [...prev, res.data.comment]);
+      // Optimistically add; socket will broadcast to other clients
+      setComments((prev) => {
+        if (prev.some((c) => c._id === res.data.comment._id)) return prev;
+        return [...prev, res.data.comment];
+      });
       setText("");
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     } catch { /* silent */ }

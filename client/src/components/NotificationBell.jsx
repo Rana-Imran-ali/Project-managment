@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { notificationAPI } from "../services/api";
+import { useSocket } from "../context/SocketContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(dateStr) {
@@ -19,6 +20,7 @@ const TYPE_META = {
   task_completed:  { icon: "✅", color: "#34d399" },
   comment_added:   { icon: "💬", color: "#f59e0b" },
   project_updated: { icon: "📁", color: "#a78bfa" },
+  project_added:   { icon: "🚀", color: "#ec4899" },
   default:         { icon: "🔔", color: "#9ca3af" },
 };
 
@@ -30,6 +32,7 @@ export default function NotificationBell() {
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const socket = useSocket();
 
   // Close on outside click
   useEffect(() => {
@@ -42,7 +45,26 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Poll unread count every 30 s
+  // Real-time notification listener via Socket.io
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewNotification = (notif) => {
+      setUnreadCount((c) => c + 1);
+      setNotifications((prev) => {
+        // Prevent duplicate if already in list
+        const filtered = prev.filter((n) => n._id !== notif._id);
+        return [notif, ...filtered];
+      });
+    };
+
+    socket.on("notification:new", handleNewNotification);
+    return () => {
+      socket.off("notification:new", handleNewNotification);
+    };
+  }, [socket]);
+
+  // Poll unread count every 30 s as a fallback
   useEffect(() => {
     fetchUnread();
     const interval = setInterval(fetchUnread, 30000);
@@ -157,7 +179,7 @@ export default function NotificationBell() {
               </div>
             ) : (
               notifications.map((n) => {
-                const meta = TYPE_META[n.type] || TYPE_META.default;
+                const meta = TYPE_META[n.type?.replace(/-/g, "_")] || TYPE_META[n.type] || TYPE_META.default;
                 return (
                   <div
                     key={n._id}

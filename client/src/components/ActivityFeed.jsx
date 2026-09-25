@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { activityAPI } from "../services/api";
+import { useSocket } from "../context/SocketContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function timeAgo(dateStr) {
@@ -41,14 +42,33 @@ function Avatar({ name, size = 28 }) {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 export default function ActivityFeed({ projectId }) {
+  const socket = useSocket();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
 
+  // ── Initial fetch ───────────────────────────────────────
   useEffect(() => {
     if (!projectId) return;
     fetchActivities();
   }, [projectId]);
+
+  // ── Socket: listen for new activity events on this project ──
+  // Note: TaskBoard already joins the project room, so we can
+  // listen on the same event without double-joining.
+  useEffect(() => {
+    if (!socket || !projectId) return;
+
+    const onActivity = (activity) => {
+      setActivities((prev) => {
+        if (prev.some((a) => a._id === activity._id)) return prev;
+        return [activity, ...prev]; // newest first
+      });
+    };
+
+    socket.on("activity:new", onActivity);
+    return () => socket.off("activity:new", onActivity);
+  }, [socket, projectId]);
 
   const fetchActivities = async () => {
     setLoading(true);

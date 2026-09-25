@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { attachmentAPI, getUploadUrl } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatBytes(bytes, decimals = 1) {
@@ -41,11 +42,39 @@ export default function TaskAttachments({ taskId }) {
   const [successMsg, setSuccessMsg] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
+  const socket = useSocket();
 
   useEffect(() => {
     if (!taskId) return;
     fetchAttachments();
   }, [taskId]);
+
+  // Real-time socket listener for attachments on this task
+  useEffect(() => {
+    if (!socket || !taskId) return;
+
+    socket.emit("join-task", taskId);
+
+    const handleCreated = (newAttachment) => {
+      setAttachments((prev) => {
+        if (prev.some((a) => a._id === newAttachment._id)) return prev;
+        return [newAttachment, ...prev];
+      });
+    };
+
+    const handleDeleted = (deletedId) => {
+      setAttachments((prev) => prev.filter((a) => a._id !== deletedId));
+    };
+
+    socket.on("attachment:created", handleCreated);
+    socket.on("attachment:deleted", handleDeleted);
+
+    return () => {
+      socket.emit("leave-task", taskId);
+      socket.off("attachment:created", handleCreated);
+      socket.off("attachment:deleted", handleDeleted);
+    };
+  }, [socket, taskId]);
 
   const fetchAttachments = async () => {
     setLoading(true);
@@ -74,7 +103,10 @@ export default function TaskAttachments({ taskId }) {
 
     try {
       const res = await attachmentAPI.upload(taskId, file);
-      setAttachments((prev) => [res.data.attachment, ...prev]);
+      setAttachments((prev) => {
+        if (prev.some((a) => a._id === res.data.attachment._id)) return prev;
+        return [res.data.attachment, ...prev];
+      });
       setSuccessMsg("File uploaded successfully!");
       setTimeout(() => setSuccessMsg(""), 3000);
       if (fileInputRef.current) fileInputRef.current.value = "";
